@@ -2,6 +2,7 @@ module GameOfLife.Cell
   ( Cell
   , alive
   , dead
+  , toCell
   , isAlive
   , isDead
   ) where
@@ -16,6 +17,9 @@ alive = True
 
 dead :: Cell
 dead = False
+
+toCell :: Bool -> Cell
+toCell = id
 
 isAlive :: Cell -> Bool
 isAlive = id
