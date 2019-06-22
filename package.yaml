@@ -1,0 +1,26 @@
+name:                game-of-life
+version:             0.0.0.0
+github:              "nahiluhmot/game-of-life"
+license:             BSD3
+author:              "Tom Hulihan"
+maintainer:          "hulihan.tom159@gmail.com"
+copyright:           "2019 Tom Hulihan"
+
+extra-source-files:
+- README.md
+
+synopsis:            Terminal "Game of life" using vectors
+category:            Fun
+description:         Please see the README on GitHub at <https://github.com/nahilhumot/game-of-life>
+dependencies:
+- base >= 4.7 && < 5
+
+library:
+  source-dirs: src
+
+executables:
+  game-of-life-exe:
+    main:                Main.hs
+    source-dirs:         app
+    dependencies:
+    - game-of-life
