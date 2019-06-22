@@ -14,6 +14,7 @@ category:            Fun
 description:         Please see the README on GitHub at <https://github.com/nahilhumot/game-of-life>
 dependencies:
 - base >= 4.7 && < 5
+- random >= 1.1 && < 2
 - vector >= 0.12 && < 1
 
 library:
