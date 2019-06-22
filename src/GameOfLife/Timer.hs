@@ -7,9 +7,6 @@ module GameOfLife.Timer
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 
-import Control.Concurrent.STM (atomically)
-import Control.Concurrent.STM.TQueue (TQueue, flushTQueue)
-
 import Control.Monad.Cont (ContT, callCC, runContT)
 import Control.Monad.State (StateT, evalStateT, get, gets, liftIO, modify)
 
@@ -18,7 +15,7 @@ type Timer = ContT () (StateT TimerConf IO)
 data TimerConf =
   TimerConf { action :: IO ()
             , usDelay :: Int
-            , queue :: TQueue TimerControl
+            , readCtrlMsgs :: IO [TimerControl]
             }
 
 data TimerControl
@@ -36,14 +33,10 @@ tick =
   let
     tickOnce :: Timer () -> Timer ()
     tickOnce exit =
-       readCtrlMessages >>= mapM_ (handleCtrlMessage exit) >> performAndSleep
+      msgBatch >>= mapM_ (handleCtrlMessage exit) >> performAndSleep
 
-    performAndSleep =
-      get >>= \(TimerConf perform delay _) ->
-        liftIO (perform >> threadDelay delay)
-
-    readCtrlMessages =
-      gets queue >>= liftIO . atomically . flushTQueue
+    msgBatch =
+      gets readCtrlMsgs >>= liftIO
 
     handleCtrlMessage :: Timer () -> TimerControl -> Timer ()
     handleCtrlMessage exit Shutdown =
@@ -52,8 +45,12 @@ tick =
       modify $ \conf -> conf { usDelay = incDelay (usDelay conf) }
     handleCtrlMessage _ DecDelay =
       modify $ \conf -> conf { usDelay = decDelay (usDelay conf) }
+
+    performAndSleep =
+      get >>= \(TimerConf perform delay _) ->
+        liftIO (perform >> threadDelay delay)
   in
-    callCC $ \exit -> forever (tickOnce (exit ()))
+    callCC $ \exit -> forever $ tickOnce (exit ())
 
 incDelay :: Int -> Int
 incDelay curr
