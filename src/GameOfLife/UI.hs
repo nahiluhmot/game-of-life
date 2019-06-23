@@ -12,7 +12,7 @@ import Control.Monad.Cont (ContT, callCC, runContT)
 import Control.Monad.State (StateT, evalStateT, gets, lift, modify)
 
 import Graphics.Vty.Attributes (defAttr)
-import Graphics.Vty.Image (Image, (<|>), (<->), char, vertCat)
+import Graphics.Vty.Image (Image, (<|>), (<->), char, emptyImage)
 import Graphics.Vty.Picture (Picture, picForImage)
 
 import System.Random (RandomGen)
@@ -89,7 +89,7 @@ drawGrid =
     g is 0 _ cell = drawCell cell : is
     g (i:is) _ _ cell = (drawCell cell <|> i) : is
   in
-    vertCat . reverse . G.foldWithCoord g []
+    foldr (<->) emptyImage . G.foldWithCoord g []
 
 drawCell :: Cell -> Image
 drawCell cell
