@@ -82,8 +82,8 @@ foldWithCoord f initial grid@(Grid cs _ _) =
   ifoldl' (\acc -> uncurry (f acc) . toXY grid) initial cs
 
 toXY :: Grid -> Int -> (Int, Int)
-toXY (Grid _ _ h) idx =
-  swap $ idx `divMod` h
+toXY (Grid _ w _) idx =
+  swap $ idx `divMod` w
 
 toIdx :: Grid -> Int -> Int -> Int
 toIdx (Grid _ _ h) x y =
