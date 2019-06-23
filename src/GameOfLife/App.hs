@@ -28,7 +28,7 @@ runApp = do
   eventToUI <- newTBQueueIO 1024
   -- The timer queue controls the refresh rate of the UI. It doesn't do us any
   -- good to allow it to build up. Maxing out at one keeps the application
-  -- responsive.
+  -- responsive, and allows us to pause more easily.
   timerToUI <- newTBQueueIO 1
 
   vty <- V.mkVty defaultConfig
@@ -64,6 +64,7 @@ timerThread timerQueue uiQueue =
               , minRefreshRate = 1
               , maxRefreshRate = 60
               , readCtrlMsgs = atomically $ flushTBQueue timerQueue
+              , paused = False
               }
 
 uiThread :: RandomGen g => V.Vty -> [TBQueue UIControl] -> g -> (Int, Int) -> IO ()

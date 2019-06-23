@@ -5,7 +5,7 @@ module GameOfLife.Timer
   ) where
 
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever)
+import Control.Monad (forever, unless)
 
 import Control.Monad.Cont (ContT, callCC, runContT)
 import Control.Monad.State.Strict (StateT, evalStateT, get, gets, liftIO, modify)
@@ -18,12 +18,15 @@ data TimerConf =
             , refreshRate :: !Int -- hz
             , minRefreshRate :: !Int -- hz
             , maxRefreshRate :: !Int -- hz
+            , paused :: Bool
             }
 
 data TimerControl
   = StopTimer
   | IncFreq
   | DecFreq
+  | Pause
+  | Resume
   deriving (Eq, Show)
 
 runTimer :: TimerConf -> IO ()
@@ -43,6 +46,12 @@ tick =
     handleCtrlMessage :: Timer () -> TimerControl -> Timer ()
     handleCtrlMessage exit StopTimer =
       exit
+    handleCtrlMessage _ Pause =
+      modify $ \conf ->
+        conf { paused = True }
+    handleCtrlMessage _ Resume =
+      modify $ \conf ->
+        conf { paused = False }
     handleCtrlMessage _ IncFreq =
       modify $ \conf ->
         let
@@ -67,8 +76,10 @@ tick =
           conf { refreshRate = rate }
 
     performAndSleep =
-      get >>= \conf->
-        liftIO $ action conf >> threadDelay (hzToUsec (refreshRate conf))
+      get >>= \conf ->
+        liftIO $
+          unless (paused conf) (action conf) >>
+            threadDelay (hzToUsec (refreshRate conf))
   in
     callCC $ \exit -> forever $ tickOnce (exit ())
 
