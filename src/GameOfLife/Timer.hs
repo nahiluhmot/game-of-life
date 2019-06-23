@@ -14,14 +14,16 @@ type Timer = ContT () (StateT TimerConf IO)
 
 data TimerConf =
   TimerConf { action :: !(IO ())
-            , usDelay :: !Int
             , readCtrlMsgs :: !(IO [TimerControl])
+            , refreshRate :: !Int -- hz
+            , minRefreshRate :: !Int -- hz
+            , maxRefreshRate :: !Int -- hz
             }
 
 data TimerControl
   = StopTimer
-  | IncDelay
-  | DecDelay
+  | IncFreq
+  | DecFreq
   deriving (Eq, Show)
 
 runTimer :: TimerConf -> IO ()
@@ -41,43 +43,35 @@ tick =
     handleCtrlMessage :: Timer () -> TimerControl -> Timer ()
     handleCtrlMessage exit StopTimer =
       exit
-    handleCtrlMessage _ IncDelay =
-      modify $ \conf -> conf { usDelay = incDelay (usDelay conf) }
-    handleCtrlMessage _ DecDelay =
-      modify $ \conf -> conf { usDelay = decDelay (usDelay conf) }
+    handleCtrlMessage _ IncFreq =
+      modify $ \conf ->
+        let
+          maxRate = maxRefreshRate conf
+          curr = refreshRate conf
+          delta = 5
+          rate
+            | (curr + delta) >= maxRate = maxRate
+            | otherwise = curr + delta
+        in
+          conf { refreshRate = rate }
+    handleCtrlMessage _ DecFreq =
+      modify $ \conf ->
+        let
+          minRate = minRefreshRate conf
+          curr = refreshRate conf
+          delta = 5
+          rate
+            | (curr - delta) <= minRate = minRate
+            | otherwise = curr - delta
+        in
+          conf { refreshRate = rate }
 
     performAndSleep =
-      get >>= \(TimerConf perform delay _) ->
-        liftIO (perform >> threadDelay delay)
+      get >>= \conf->
+        liftIO $ action conf >> threadDelay (hzToUsec (refreshRate conf))
   in
     callCC $ \exit -> forever $ tickOnce (exit ())
 
-incDelay :: Int -> Int
-incDelay curr =
-  let
-    double = curr * 2
-    cutoff = second
-    next
-      | double >= cutoff = cutoff
-      | otherwise = double
-  in
-    next
-
-decDelay :: Int -> Int
-decDelay curr =
-  let
-    cutoff = 16 * millisecond
-    half = curr `div` 2
-    next
-      | half <= cutoff = cutoff
-      | otherwise = half
-  in
-    next
-
-millisecond :: Int
-millisecond =
-  1000
-
-second :: Int
-second =
-  1000 * 1000
+hzToUsec :: Int -> Int
+hzToUsec hz =
+  (1000 * 1000) `div` hz
