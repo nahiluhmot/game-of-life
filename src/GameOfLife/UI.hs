@@ -8,7 +8,6 @@ module GameOfLife.UI
 
 import Control.Monad (forever)
 
-import Control.Monad.Cont (ContT, callCC, runContT)
 import Control.Monad.State (StateT, evalStateT, gets, lift, modify)
 
 import Graphics.Vty.Attributes (defAttr)
@@ -33,11 +32,10 @@ data UIConf rng m =
 data UIControl
   = NextIteration
   | Resize Int Int
-  | StopUI
   deriving (Eq, Show)
 
-type ContUI r rng m
-  = ContT r (StateT (UIConf rng m, Grid) m)
+type UIT rng m
+  = StateT (UIConf rng m, Grid) m
 
 -- Run the UI with the given configuration.
 runUI :: (RandomGen rng, Monad m) => UIConf rng m -> m ()
@@ -49,19 +47,17 @@ runUI conf =
     initialState =
       (conf, initialGrid)
   in
-    evalStateT (runContT uiLoop pure) initialState
+    evalStateT uiLoop initialState
 
-uiLoop :: (RandomGen rng, Monad m) => ContUI () rng m ()
+uiLoop :: (RandomGen rng, Monad m) => UIT rng m ()
 uiLoop =
-  callCC $ \shutdown ->
-    forever $
-      -- heavy 'lift'ing required because we wrap ContT (StateT m)
-      getsConf nextControl >>= lift . lift >>= \case
-        NextIteration -> nextIteration
-        Resize x y -> resizeGrid x y
-        StopUI -> shutdown ()
+  forever $
+    -- heavy 'lift'ing required because we wrap ContT (StateT m)
+    getsConf nextControl >>= lift >>= \case
+      NextIteration -> nextIteration
+      Resize x y -> resizeGrid x y
 
-nextIteration :: Monad m => ContUI () rng m ()
+nextIteration :: Monad m => UIT rng m ()
 nextIteration =
   getGrid >>= \grid ->
     let
@@ -69,7 +65,7 @@ nextIteration =
     in
       putGrid newGrid >> renderGrid newGrid
 
-resizeGrid :: (RandomGen rng, Monad m) => Int -> Int -> ContUI () rng m ()
+resizeGrid :: (RandomGen rng, Monad m) => Int -> Int -> UIT rng m ()
 resizeGrid x y =
   getsConf randGen >>= \rng ->
     let
@@ -77,10 +73,10 @@ resizeGrid x y =
     in
       putGrid grid >> renderGrid grid
 
-renderGrid :: Monad m => Grid -> ContUI () rng m ()
+renderGrid :: Monad m => Grid -> UIT rng m ()
 renderGrid grid =
   getsConf render >>=
-    lift . lift . ($ picForImage $ drawGrid grid)
+    lift . ($ picForImage $ drawGrid grid)
 
 drawGrid :: Grid -> Image
 drawGrid =
@@ -96,14 +92,14 @@ drawCell cell
   | isAlive cell = char defAttr '█'
   | otherwise = char defAttr ' '
 
-getsConf :: Monad m => (UIConf rng m -> a) -> ContUI r rng m a
+getsConf :: Monad m => (UIConf rng m -> a) -> UIT rng m a
 getsConf =
   gets . (. fst)
 
-putGrid :: Monad m => Grid -> ContUI r rng m ()
+putGrid :: Monad m => Grid -> UIT rng m ()
 putGrid =
   modify . fmap . const
 
-getGrid :: Monad m => ContUI r rng m Grid
+getGrid :: Monad m => UIT rng m Grid
 getGrid =
   gets snd
