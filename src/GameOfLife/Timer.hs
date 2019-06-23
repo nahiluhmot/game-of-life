@@ -58,9 +58,15 @@ incDelay curr
   | otherwise = curr * 2
 
 decDelay :: Int -> Int
-decDelay curr
-  | millisecond >= curr = millisecond
-  | otherwise = curr `div` 2
+decDelay curr =
+  let
+    cutoff = 16 * millisecond
+    half = curr `div` 2
+    next
+      | half <= cutoff = cutoff
+      | otherwise = half
+  in
+    next
 
 millisecond :: Int
 millisecond =
