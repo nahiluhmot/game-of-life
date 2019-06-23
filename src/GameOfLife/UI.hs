@@ -26,7 +26,6 @@ data UIConf rng m =
   UIConf { nextControl :: !(m UIControl)
          , render :: !(Picture -> m ())
          , randGen :: !rng
-         , onShutdown :: !(m ())
          , initialSize :: !(Int, Int)
          }
 
@@ -60,7 +59,7 @@ uiLoop =
       getsConf nextControl >>= lift . lift >>= \case
         NextIteration -> nextIteration
         Resize x y -> resizeGrid x y
-        StopUI -> getsConf onShutdown >>= lift . lift >>= shutdown
+        StopUI -> shutdown ()
 
 nextIteration :: Monad m => ContUI () rng m ()
 nextIteration =
