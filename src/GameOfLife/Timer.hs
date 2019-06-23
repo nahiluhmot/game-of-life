@@ -7,7 +7,7 @@ module GameOfLife.Timer
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 
-import Control.Monad.State (StateT, evalStateT, get, gets, liftIO, modify)
+import Control.Monad.State (StateT, evalStateT, get, liftIO, modify)
 
 type Timer = StateT TimerConf IO
 
