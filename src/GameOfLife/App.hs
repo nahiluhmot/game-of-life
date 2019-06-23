@@ -5,11 +5,12 @@ module GameOfLife.App
   ) where
 
 import Control.Concurrent.STM (STM, atomically, retry)
-import Control.Concurrent.STM.TQueue (TQueue, flushTQueue, newTQueueIO, tryReadTQueue, writeTQueue)
+import Control.Concurrent.STM.TBQueue (TBQueue, flushTBQueue, isFullTBQueue, newTBQueueIO, tryReadTBQueue, writeTBQueue)
 import Control.Concurrent.Async (async, wait)
 
 import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
+import Graphics.Vty.Output (hideCursor, showCursor)
 import Graphics.Vty.Output.Interface (displayBounds)
 
 import System.Random (RandomGen, newStdGen)
@@ -22,12 +23,18 @@ runApp :: IO ()
 runApp = do
   gen <- newStdGen
 
-  eventToTimer <- newTQueueIO
-  eventToUI <- newTQueueIO
-  timerToUI <- newTQueueIO
+  -- Allow event queues to build up for responsiveness.
+  eventToTimer <- newTBQueueIO 1024
+  eventToUI <- newTBQueueIO 1024
+  -- The timer queue controls the refresh rate of the UI. It doesn't do us any
+  -- good to allow it to build up. Maxing out at one keeps the application
+  -- responsive.
+  timerToUI <- newTBQueueIO 1
 
   vty <- V.mkVty defaultConfig
   size <- displayBounds $ V.outputIface vty
+
+  hideCursor $ V.outputIface vty
 
   eventHandlerFuture <- async $ eventHandlerThread vty eventToTimer eventToUI
   timerFuture <- async $ timerThread eventToTimer timerToUI
@@ -37,25 +44,27 @@ runApp = do
   wait timerFuture
   wait uiFuture
 
+  showCursor $ V.outputIface vty
+
   V.shutdown vty
 
-eventHandlerThread :: V.Vty -> TQueue TimerControl -> TQueue UIControl -> IO ()
+eventHandlerThread :: V.Vty -> TBQueue TimerControl -> TBQueue UIControl -> IO ()
 eventHandlerThread vty timerQueue uiQueue =
   runEventHandler
     EventHandlerConf { nextEvent = V.nextEvent vty
-                     , timerCtrl = atomically . writeTQueue timerQueue
-                     , uiCtrl = atomically . writeTQueue uiQueue
+                     , timerCtrl = atomically . writeTBQueue timerQueue
+                     , uiCtrl = atomically . writeTBQueue uiQueue
                      }
 
-timerThread :: TQueue TimerControl -> TQueue UIControl -> IO ()
+timerThread :: TBQueue TimerControl -> TBQueue UIControl -> IO ()
 timerThread timerQueue uiQueue =
   runTimer
-    TimerConf { action = atomically $ writeTQueue uiQueue NextIteration
-              , usDelay = 500 * 1000 -- 1/2 second
-              , readCtrlMsgs = atomically $ flushTQueue timerQueue
+    TimerConf { action = atomically $ tryWriteQueue uiQueue NextIteration
+              , usDelay = 20 * 1000 -- 1/5 second
+              , readCtrlMsgs = atomically $ flushTBQueue timerQueue
               }
 
-uiThread :: RandomGen g => V.Vty -> [TQueue UIControl] -> g -> (Int, Int) -> IO ()
+uiThread :: RandomGen g => V.Vty -> [TBQueue UIControl] -> g -> (Int, Int) -> IO ()
 uiThread vty queues gen size =
   runUI
     UIConf { nextControl = atomically $ readQueues queues
@@ -64,13 +73,19 @@ uiThread vty queues gen size =
            , initialSize = size
            }
 
+tryWriteQueue :: TBQueue a -> a -> STM ()
+tryWriteQueue queue msg =
+  isFullTBQueue queue >>= \case
+    False -> writeTBQueue queue msg
+    True -> pure ()
+
 -- Tried to read from the queues in order, retrying until one is successful.
-readQueues :: [TQueue a] -> STM a
+readQueues :: [TBQueue a] -> STM a
 readQueues =
   foldr readOrElse retry
 
-readOrElse :: TQueue a -> STM a -> STM a
+readOrElse :: TBQueue a -> STM a -> STM a
 readOrElse queue alternative =
-  tryReadTQueue queue >>= \case
+  tryReadTBQueue queue >>= \case
     Nothing -> alternative
     Just val -> pure val
