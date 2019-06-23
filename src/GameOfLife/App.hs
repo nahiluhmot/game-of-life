@@ -16,6 +16,7 @@ import Graphics.Vty.Output.Interface (displayBounds)
 import System.Random (RandomGen, newStdGen)
 
 import GameOfLife.EventHandler (EventHandlerConf(..), runEventHandler)
+import GameOfLife.Render (RenderConf(..), RenderControl(..), runRenderer)
 import GameOfLife.Timer (TimerConf(..), TimerControl, runTimer)
 import GameOfLife.UI (UIConf(..), UIControl(..), runUI)
 
@@ -26,34 +27,40 @@ runApp = do
   -- Allow event queues to build up for responsiveness.
   eventToTimer <- newTBQueueIO 1024
   eventToUI <- newTBQueueIO 1024
+  -- Event only sends shutdowns to render
+  eventToRender <- newTBQueueIO 1
   -- The timer queue controls the refresh rate of the UI. It doesn't do us any
   -- good to allow it to build up. Maxing out at one keeps the application
   -- responsive, and allows us to pause more easily.
   timerToUI <- newTBQueueIO 1
+  uiToRender <- newTBQueueIO 1
 
   vty <- V.mkVty defaultConfig
   size <- displayBounds $ V.outputIface vty
 
   hideCursor $ V.outputIface vty
 
-  eventHandlerFuture <- async $ eventHandlerThread vty eventToTimer eventToUI
+  eventHandlerFuture <- async $ eventHandlerThread vty eventToTimer eventToUI eventToRender
   timerFuture <- async $ timerThread eventToTimer timerToUI
-  uiFuture <- async $ uiThread vty [eventToUI, timerToUI] gen size
+  uiFuture <- async $ uiThread [eventToUI, timerToUI] uiToRender gen size
+  renderFuture <- async $ renderThread [eventToRender, uiToRender] vty
 
   wait eventHandlerFuture
   wait timerFuture
   wait uiFuture
+  wait renderFuture
 
   showCursor $ V.outputIface vty
 
   V.shutdown vty
 
-eventHandlerThread :: V.Vty -> TBQueue TimerControl -> TBQueue UIControl -> IO ()
-eventHandlerThread vty timerQueue uiQueue =
+eventHandlerThread :: V.Vty -> TBQueue TimerControl -> TBQueue UIControl -> TBQueue RenderControl -> IO ()
+eventHandlerThread vty timerQueue uiQueue renderQueue =
   runEventHandler
     EventHandlerConf { nextEvent = V.nextEvent vty
                      , timerCtrl = atomically . writeTBQueue timerQueue
                      , uiCtrl = atomically . writeTBQueue uiQueue
+                     , renderCtrl = atomically . writeTBQueue renderQueue
                      }
 
 timerThread :: TBQueue TimerControl -> TBQueue UIControl -> IO ()
@@ -67,14 +74,21 @@ timerThread timerQueue uiQueue =
               , paused = False
               }
 
-uiThread :: RandomGen g => V.Vty -> [TBQueue UIControl] -> g -> (Int, Int) -> IO ()
-uiThread vty queues gen size =
+uiThread :: RandomGen g => [TBQueue UIControl] -> TBQueue RenderControl -> g -> (Int, Int) -> IO ()
+uiThread queues renderQueue gen size =
   runUI
     UIConf { nextControl = atomically $ readQueues queues
-           , render = V.update vty
+           , render = atomically . writeTBQueue renderQueue . Draw
            , randGen = gen
            , initialSize = size
            }
+
+renderThread :: [TBQueue RenderControl] -> V.Vty -> IO ()
+renderThread queues vty =
+  runRenderer
+    RenderConf { renderControl = atomically $ readQueues queues
+               , outputPicture = V.update vty
+               }
 
 tryWriteQueue :: TBQueue a -> a -> STM ()
 tryWriteQueue queue msg =
