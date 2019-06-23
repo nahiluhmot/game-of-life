@@ -69,8 +69,24 @@ next grid@(Grid cs w h) =
           | (y + 1) == h = 0
           | cellAlive $ toIdx grid x (y + 1) = 1
           | otherwise = 0
+        leftUp
+          | (x == 0) || (y == 0) = 0
+          | cellAlive $ toIdx grid (x - 1) (y - 1) = 1
+          | otherwise = 0
+        rightUp
+          | ((x + 1) == w) || (y == 0) = 0
+          | cellAlive $ toIdx grid (x + 1) (y - 1) = 1
+          | otherwise = 0
+        leftDown
+          | (x == 0) || ((y + 1) == h) = 0
+          | cellAlive $ toIdx grid (x - 1) (y + 1) = 1
+          | otherwise = 0
+        rightDown
+          | ((x + 1) == w) || ((y + 1) == h) = 0
+          | cellAlive $ toIdx grid (x + 1) (y + 1) = 1
+          | otherwise = 0
       in
-        left + right + up + down
+        left + right + up + down + leftUp + leftDown + rightUp + rightDown
 
     cellAlive idx =
       isAlive $ cs ! idx
@@ -86,5 +102,5 @@ toXY (Grid _ w _) idx =
   swap $ idx `divMod` w
 
 toIdx :: Grid -> Int -> Int -> Int
-toIdx (Grid _ _ h) x y =
-  x + (y * h)
+toIdx (Grid _ w _) x y =
+  x + (y * w)
