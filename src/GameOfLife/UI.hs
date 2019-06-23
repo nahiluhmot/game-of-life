@@ -92,7 +92,7 @@ drawGrid =
 
 drawCell :: Cell -> Image
 drawCell cell
-  | isAlive cell = char defAttr '*'
+  | isAlive cell = char defAttr '█'
   | otherwise = char defAttr ' '
 
 getsConf :: Monad m => (UIConf rng m -> a) -> ContUI r rng m a
