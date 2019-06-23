@@ -19,7 +19,7 @@ data TimerConf =
             }
 
 data TimerControl
-  = Shutdown
+  = StopTimer
   | IncDelay
   | DecDelay
   deriving (Eq, Show)
@@ -39,7 +39,7 @@ tick =
       gets readCtrlMsgs >>= liftIO
 
     handleCtrlMessage :: Timer () -> TimerControl -> Timer ()
-    handleCtrlMessage exit Shutdown =
+    handleCtrlMessage exit StopTimer =
       exit
     handleCtrlMessage _ IncDelay =
       modify $ \conf -> conf { usDelay = incDelay (usDelay conf) }
