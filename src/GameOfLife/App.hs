@@ -4,7 +4,7 @@ module GameOfLife.App
 
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TQueue (TQueue, flushTQueue, newTQueueIO, readTQueue, writeTQueue)
-import Control.Concurrent.Async (async, wait)
+import Control.Concurrent.Async (async, cancel, wait)
 
 import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
@@ -31,8 +31,9 @@ runApp = do
   uiFuture <- async $ uiThread vty uiQueue gen size
 
   wait eventHandlerFuture
-  wait timerFuture
-  wait uiFuture
+
+  cancel timerFuture
+  cancel uiFuture
 
   V.shutdown vty
 
