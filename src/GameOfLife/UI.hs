@@ -23,11 +23,11 @@ import qualified GameOfLife.Grid as G
 
 -- Configuration for the UI.
 data UIConf rng m =
-  UIConf { nextControl :: m UIControl
-         , render :: Picture -> m ()
-         , randGen :: rng
-         , onShutdown :: m ()
-         , initialSize :: (Int, Int)
+  UIConf { nextControl :: !(m UIControl)
+         , render :: !(Picture -> m ())
+         , randGen :: !rng
+         , onShutdown :: !(m ())
+         , initialSize :: !(Int, Int)
          }
 
 -- Control instructions for the UI.

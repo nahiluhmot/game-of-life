@@ -13,9 +13,9 @@ import Control.Monad.State (StateT, evalStateT, get, gets, liftIO, modify)
 type Timer = ContT () (StateT TimerConf IO)
 
 data TimerConf =
-  TimerConf { action :: IO ()
-            , usDelay :: Int
-            , readCtrlMsgs :: IO [TimerControl]
+  TimerConf { action :: !(IO ())
+            , usDelay :: !Int
+            , readCtrlMsgs :: !(IO [TimerControl])
             }
 
 data TimerControl
