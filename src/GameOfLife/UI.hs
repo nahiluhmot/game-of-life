@@ -27,7 +27,7 @@ import qualified GameOfLife.Grid as G
 data UIConf rng m =
   UIConf { nextControl :: !(m UIControl)
          , render :: !(Picture -> m ())
-         , randGen :: !rng
+         , getRandGen :: !(m rng)
          , initialSize :: !(Int, Int)
          }
 
@@ -46,14 +46,15 @@ type ContUI rng m
 -- Run the UI with the given configuration.
 runUI :: (RandomGen rng, Monad m) => UIConf rng m -> m ()
 runUI conf =
-  let
-    initialGrid =
-      uncurry (G.random $ randGen conf) $ initialSize conf
+  getRandGen conf >>= \gen ->
+    let
+      initialGrid =
+        uncurry (G.random $ gen) $ initialSize conf
 
-    initialState =
-      (conf, initialGrid)
-  in
-    evalStateT (runContT uiLoop pure) initialState
+      initialState =
+        (conf, initialGrid)
+    in
+      evalStateT (runContT uiLoop pure) initialState
 
 uiLoop :: (RandomGen rng, Monad m) => ContUI rng m ()
 uiLoop =
@@ -87,7 +88,7 @@ clearGrid =
 
 resizeGrid :: (RandomGen rng, Monad m) => Int -> Int -> ContUI rng m ()
 resizeGrid x y =
-  getsConf randGen >>= \rng ->
+  getsConf getRandGen >>= lift . lift >>= \rng ->
     let
       grid = G.random rng x y
     in

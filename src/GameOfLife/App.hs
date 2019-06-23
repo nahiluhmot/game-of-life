@@ -13,7 +13,7 @@ import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.Output (hideCursor, showCursor)
 import Graphics.Vty.Output.Interface (displayBounds)
 
-import System.Random (RandomGen, newStdGen)
+import System.Random (newStdGen)
 
 import GameOfLife.EventHandler (EventHandlerConf(..), runEventHandler)
 import GameOfLife.Render (RenderConf(..), RenderControl(..), runRenderer)
@@ -22,8 +22,6 @@ import GameOfLife.UI (UIConf(..), UIControl(..), runUI)
 
 runApp :: IO ()
 runApp = do
-  gen <- newStdGen
-
   -- Allow event queues to build up for responsiveness.
   eventToTimer <- newTBQueueIO 1024
   eventToUI <- newTBQueueIO 1024
@@ -42,7 +40,7 @@ runApp = do
 
   eventHandlerFuture <- async $ eventHandlerThread vty eventToTimer eventToUI eventToRender
   timerFuture <- async $ timerThread eventToTimer timerToUI
-  uiFuture <- async $ uiThread [eventToUI, timerToUI] uiToRender gen size
+  uiFuture <- async $ uiThread [eventToUI, timerToUI] uiToRender size
   renderFuture <- async $ renderThread [eventToRender, uiToRender] vty
 
   wait eventHandlerFuture
@@ -74,12 +72,12 @@ timerThread timerQueue uiQueue =
               , paused = False
               }
 
-uiThread :: RandomGen g => [TBQueue UIControl] -> TBQueue RenderControl -> g -> (Int, Int) -> IO ()
-uiThread queues renderQueue gen size =
+uiThread :: [TBQueue UIControl] -> TBQueue RenderControl -> (Int, Int) -> IO ()
+uiThread queues renderQueue size =
   runUI
     UIConf { nextControl = atomically $ readQueues queues
            , render = atomically . writeTBQueue renderQueue . Draw
-           , randGen = gen
+           , getRandGen = newStdGen
            , initialSize = size
            }
 
