@@ -10,7 +10,7 @@ import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.Output.Interface (displayBounds)
 
-import System.Random (RandomGen, getStdGen)
+import System.Random (RandomGen, newStdGen)
 
 import GameOfLife.EventHandler (EventHandlerConf(..), runEventHandler)
 import GameOfLife.Timer (TimerConf(..), TimerControl, runTimer)
@@ -18,7 +18,7 @@ import GameOfLife.UI (UIConf(..), UIControl(..), runUI)
 
 runApp :: IO ()
 runApp = do
-  gen <- getStdGen
+  gen <- newStdGen
 
   timerQueue <- newTQueueIO
   uiQueue <- newTQueueIO
