@@ -17,7 +17,7 @@ import Graphics.Vty.Picture (Picture, picForImage)
 import System.Random (RandomGen)
 
 import GameOfLife.Cell (Cell, isAlive)
-import GameOfLife.Grid (Grid)
+import GameOfLife.Grid (Grid(..))
 import qualified GameOfLife.Grid as G
 
 -- Configuration for the UI.
@@ -31,6 +31,7 @@ data UIConf rng m =
 -- Control instructions for the UI.
 data UIControl
   = NextIteration
+  | Refresh
   | Resize Int Int
   deriving (Eq, Show)
 
@@ -55,6 +56,7 @@ uiLoop =
     -- heavy 'lift'ing required because we wrap ContT (StateT m)
     getsConf nextControl >>= lift >>= \case
       NextIteration -> nextIteration
+      Refresh -> refreshGrid
       Resize x y -> resizeGrid x y
 
 nextIteration :: Monad m => UIT rng m ()
@@ -64,6 +66,11 @@ nextIteration =
       newGrid = G.next grid
     in
       putGrid newGrid >> renderGrid newGrid
+
+refreshGrid :: (RandomGen rng, Monad m) => UIT rng m ()
+refreshGrid =
+  getGrid >>= \grid ->
+    resizeGrid (width grid) (height grid)
 
 resizeGrid :: (RandomGen rng, Monad m) => Int -> Int -> UIT rng m ()
 resizeGrid x y =
