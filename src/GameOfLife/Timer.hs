@@ -7,9 +7,10 @@ module GameOfLife.Timer
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 
-import Control.Monad.State (StateT, evalStateT, get, liftIO, modify)
+import Control.Monad.Cont (ContT, callCC, runContT)
+import Control.Monad.State (StateT, evalStateT, get, gets, liftIO, modify)
 
-type Timer = StateT TimerConf IO
+type Timer = ContT () (StateT TimerConf IO)
 
 data TimerConf =
   TimerConf { action :: !(IO ())
@@ -18,27 +19,38 @@ data TimerConf =
             }
 
 data TimerControl
-  = IncDelay
+  = StopTimer
+  | IncDelay
   | DecDelay
   deriving (Eq, Show)
 
 runTimer :: TimerConf -> IO ()
 runTimer =
-  evalStateT tick
+  evalStateT $ runContT tick pure
 
 tick :: Timer ()
 tick =
-  forever $
-    get >>= \(TimerConf perform delay getMessages) ->
-      liftIO getMessages >>=
-        mapM_ handleCtrlMessage >>
-          liftIO (perform >> threadDelay delay)
+  let
+    tickOnce :: Timer () -> Timer ()
+    tickOnce exit =
+      msgBatch >>= mapM_ (handleCtrlMessage exit) >> performAndSleep
 
-handleCtrlMessage :: TimerControl -> Timer ()
-handleCtrlMessage IncDelay =
-  modify $ \conf -> conf { usDelay = incDelay (usDelay conf) }
-handleCtrlMessage DecDelay =
-  modify $ \conf -> conf { usDelay = decDelay (usDelay conf) }
+    msgBatch =
+      gets readCtrlMsgs >>= liftIO
+
+    handleCtrlMessage :: Timer () -> TimerControl -> Timer ()
+    handleCtrlMessage exit StopTimer =
+      exit
+    handleCtrlMessage _ IncDelay =
+      modify $ \conf -> conf { usDelay = incDelay (usDelay conf) }
+    handleCtrlMessage _ DecDelay =
+      modify $ \conf -> conf { usDelay = decDelay (usDelay conf) }
+
+    performAndSleep =
+      get >>= \(TimerConf perform delay _) ->
+        liftIO (perform >> threadDelay delay)
+  in
+    callCC $ \exit -> forever $ tickOnce (exit ())
 
 incDelay :: Int -> Int
 incDelay curr
