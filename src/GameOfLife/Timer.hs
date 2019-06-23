@@ -57,7 +57,7 @@ tick =
         let
           maxRate = maxRefreshRate conf
           curr = refreshRate conf
-          delta = 5
+          delta = 1
           rate
             | (curr + delta) >= maxRate = maxRate
             | otherwise = curr + delta
@@ -68,7 +68,7 @@ tick =
         let
           minRate = minRefreshRate conf
           curr = refreshRate conf
-          delta = 5
+          delta = 1
           rate
             | (curr - delta) <= minRate = minRate
             | otherwise = curr - delta
