@@ -8,7 +8,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 
 import Control.Monad.Cont (ContT, callCC, runContT)
-import Control.Monad.State (StateT, evalStateT, get, gets, liftIO, modify)
+import Control.Monad.State.Strict (StateT, evalStateT, get, gets, liftIO, modify)
 
 type Timer = ContT () (StateT TimerConf IO)
 

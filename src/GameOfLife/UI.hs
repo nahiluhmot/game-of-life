@@ -9,13 +9,15 @@ module GameOfLife.UI
 import Control.Monad (forever)
 
 import Control.Monad.Cont (ContT, callCC, runContT)
-import Control.Monad.State (StateT, evalStateT, gets, lift, modify)
+import Control.Monad.State.Strict (StateT, evalStateT, gets, lift, modify)
 
 import Graphics.Vty.Attributes (defAttr)
-import Graphics.Vty.Image (Image, (<|>), (<->), char, emptyImage)
+import Graphics.Vty.Image (Image, (<->), text, emptyImage)
 import Graphics.Vty.Picture (Picture, picForImage)
 
 import System.Random (RandomGen)
+
+import Data.Text.Lazy.Builder (singleton, toLazyTextWith)
 
 import GameOfLife.Cell (Cell, isAlive)
 import GameOfLife.Grid (Grid(..))
@@ -66,10 +68,7 @@ uiLoop =
 nextIteration :: Monad m => ContUI rng m ()
 nextIteration =
   getGrid >>= \grid ->
-    let
-      newGrid = G.next grid
-    in
-      putGrid newGrid >> renderGrid newGrid
+    renderGrid grid >> putGrid (G.next grid)
 
 refreshGrid :: (RandomGen rng, Monad m) => ContUI rng m ()
 refreshGrid =
@@ -82,7 +81,7 @@ resizeGrid x y =
     let
       grid = G.random rng x y
     in
-      putGrid grid >> renderGrid grid
+      renderGrid grid >> putGrid (G.next grid)
 
 renderGrid :: Monad m => Grid -> ContUI rng m ()
 renderGrid grid =
@@ -90,18 +89,26 @@ renderGrid grid =
     lift . lift . ($ picForImage $ drawGrid grid)
 
 drawGrid :: Grid -> Image
-drawGrid =
+drawGrid grid =
   let
-    g [] _ _ cell = [drawCell cell]
-    g is 0 _ cell = drawCell cell : is
-    g (i:is) _ _ cell = (drawCell cell <|> i) : is
-  in
-    foldr (<->) emptyImage . G.foldWithCoord g []
+    g (image, _) 0 0 cell =
+      (image, singleton (drawCell cell))
+    g (image, builder) 0 _ cell =
+      (image <-> builderToLine builder, singleton (drawCell cell))
+    g (image, builder) _ _ cell =
+      (image, builder <> singleton (drawCell cell))
 
-drawCell :: Cell -> Image
+    builderToLine =
+      text defAttr . toLazyTextWith (width grid)
+
+    (butLast, lastLine) = G.foldWithCoord g (emptyImage, mempty) grid
+  in
+    butLast <-> builderToLine lastLine
+
+drawCell :: Cell -> Char
 drawCell cell
-  | isAlive cell = char defAttr '█'
-  | otherwise = char defAttr ' '
+  | isAlive cell = '█'
+  | otherwise = ' '
 
 getsConf :: Monad m => (UIConf rng m -> a) -> ContUI rng m a
 getsConf =
