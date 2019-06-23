@@ -36,6 +36,7 @@ eventLoop =
       asks nextEvent >>= lift . lift >>= \case
         (EvResize x y) -> uiSend (Resize x y)
         (EvKey (KChar ' ') _) -> uiSend Refresh
+        (EvKey (KChar 'c') _) -> uiSend Clear
         (EvKey (KChar '+') _) -> timerSend IncFreq
         (EvKey (KChar '-') _) -> timerSend DecFreq
         (EvKey (KChar 'p') _) -> timerSend Pause

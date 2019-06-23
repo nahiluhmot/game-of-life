@@ -35,6 +35,7 @@ data UIConf rng m =
 data UIControl
   = NextIteration
   | Refresh
+  | Clear
   | Resize Int Int
   | StopUI
   deriving (Eq, Show)
@@ -63,6 +64,7 @@ uiLoop =
         NextIteration -> nextIteration
         Resize x y -> resizeGrid x y
         Refresh -> refreshGrid
+        Clear -> clearGrid
         StopUI -> shutdown ()
 
 nextIteration :: Monad m => ContUI rng m ()
@@ -74,6 +76,14 @@ refreshGrid :: (RandomGen rng, Monad m) => ContUI rng m ()
 refreshGrid =
   getGrid >>= \grid ->
     resizeGrid (width grid) (height grid)
+
+clearGrid :: (RandomGen rng, Monad m) => ContUI rng m ()
+clearGrid =
+  getGrid >>= \grid ->
+    let
+      newGrid = G.blank (width grid) (height grid)
+    in
+      renderGrid newGrid >> putGrid newGrid
 
 resizeGrid :: (RandomGen rng, Monad m) => Int -> Int -> ContUI rng m ()
 resizeGrid x y =
