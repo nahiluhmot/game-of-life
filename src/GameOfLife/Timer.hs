@@ -59,7 +59,7 @@ incDelay curr
 
 decDelay :: Int -> Int
 decDelay curr
-  | millisecond > curr = 0
+  | millisecond >= curr = millisecond
   | otherwise = curr `div` 2
 
 millisecond :: Int
