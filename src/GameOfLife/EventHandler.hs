@@ -38,7 +38,7 @@ eventLoop =
         (EvKey (KChar 'r') _) -> uiSend Refresh
         (EvKey (KChar '+') _) -> timerSend IncDelay
         (EvKey (KChar '-') _) -> timerSend DecDelay
-        (EvKey (KChar 'q') _) -> timerSend StopTimer >> shutdown ()
+        (EvKey (KChar 'q') _) -> timerSend StopTimer >> uiSend StopUI >> shutdown ()
         _ -> pure ()
 
 timerSend :: Monad m => TimerControl -> EventT r m ()
