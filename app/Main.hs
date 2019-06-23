@@ -1,6 +1,6 @@
 module Main where
 
-import GameOfLife ()
+import GameOfLife (runApp)
 
 main :: IO ()
-main = putStrLn "Game of Life"
+main = runApp
