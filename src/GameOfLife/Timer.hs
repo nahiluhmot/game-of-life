@@ -53,9 +53,15 @@ tick =
     callCC $ \exit -> forever $ tickOnce (exit ())
 
 incDelay :: Int -> Int
-incDelay curr
-  | curr >= second = curr + second
-  | otherwise = curr * 2
+incDelay curr =
+  let
+    double = curr * 2
+    cutoff = second
+    next
+      | double >= cutoff = cutoff
+      | otherwise = double
+  in
+    next
 
 decDelay :: Int -> Int
 decDelay curr =
