@@ -65,9 +65,9 @@ timerThread :: TBQueue TimerControl -> TBQueue UIControl -> IO ()
 timerThread timerQueue uiQueue =
   runTimer
     TimerConf { action = atomically $ tryWriteQueue uiQueue NextIteration
-              , refreshRate = 15
+              , refreshRate = 30
               , minRefreshRate = 1
-              , maxRefreshRate = 30
+              , maxRefreshRate = 60
               , readCtrlMsgs = atomically $ flushTBQueue timerQueue
               , paused = False
               }

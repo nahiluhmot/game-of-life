@@ -4,6 +4,8 @@ module GameOfLife.Grid
   , random
   , next
   , foldWithCoord
+  , toXY
+  , toIdx
   ) where
 
 import Prelude hiding (replicate)

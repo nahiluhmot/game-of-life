@@ -11,6 +11,8 @@ import Control.Monad (forever)
 import Control.Monad.Cont (ContT, callCC, runContT)
 import Control.Monad.State.Strict (StateT, evalStateT, gets, lift, modify)
 
+import Data.Vector.Unboxed ((!))
+
 import Graphics.Vty.Attributes (defAttr)
 import Graphics.Vty.Image (Image, (<->), text, emptyImage)
 import Graphics.Vty.Picture (Picture, picForImage)
@@ -19,7 +21,7 @@ import System.Random (RandomGen)
 
 import Data.Text.Lazy.Builder (singleton, toLazyTextWith)
 
-import GameOfLife.Cell (Cell, isAlive)
+import GameOfLife.Cell (Cell)
 import GameOfLife.Grid (Grid(..))
 import qualified GameOfLife.Grid as G
 
@@ -48,8 +50,10 @@ runUI :: (RandomGen rng, Monad m) => UIConf rng m -> m ()
 runUI conf =
   getRandGen conf >>= \gen ->
     let
+      (x, y) = initialSize conf
+
       initialGrid =
-        uncurry (G.random $ gen) $ initialSize conf
+        G.random gen (x * 2) (y * 2)
 
       initialState =
         (conf, initialGrid)
@@ -63,7 +67,7 @@ uiLoop =
       -- heavy 'lift'ing required because we wrap ContT (StateT m)
       getsConf nextControl >>= lift . lift >>= \case
         NextIteration -> nextIteration
-        Resize x y -> resizeGrid x y
+        Resize x y -> resizeGrid (x * 2) (y * 2)
         Refresh -> refreshGrid
         Clear -> clearGrid
         StopUI -> shutdown ()
@@ -100,26 +104,47 @@ renderGrid grid =
     lift . lift . ($ picForImage $ drawGrid grid)
 
 drawGrid :: Grid -> Image
-drawGrid grid =
+drawGrid g@(Grid cs w h) =
   let
-    g (image, _) 0 0 cell =
-      (image, singleton (drawCell cell))
-    g (image, builder) 0 _ cell =
-      (image <-> builderToLine builder, singleton (drawCell cell))
-    g (image, builder) _ _ cell =
-      (image, builder <> singleton (drawCell cell))
+    go (-2) 0 builder image = combine builder image
+    go (-2) y builder image = go (w - 2) (y - 2) mempty (Just $ combine builder image)
+    go x y builder image =
+      go (x - 2) y (singleton (uncurry4 drawCells (boxAt x y)) <> builder) image
+
+    combine builder Nothing = builderToLine builder
+    combine builder (Just image) = builderToLine builder <-> image
+
+    boxAt x y =
+      ( cs ! G.toIdx g x y
+      , cs ! G.toIdx g (x + 1) y
+      , cs ! G.toIdx g x (y + 1)
+      , cs ! G.toIdx g (x + 1) (y + 1)
+      )
+
+    uncurry4 f (a, b, c, d) = f a b c d
 
     builderToLine =
-      text defAttr . toLazyTextWith (width grid)
-
-    (butLast, lastLine) = G.foldWithCoord g (emptyImage, mempty) grid
+      text defAttr . toLazyTextWith w
   in
-    butLast <-> builderToLine lastLine
+    go (w - 2) (h - 2) mempty Nothing
 
-drawCell :: Cell -> Char
-drawCell cell
-  | isAlive cell = '█'
-  | otherwise = ' '
+drawCells :: Cell -> Cell -> Cell -> Cell -> Char
+drawCells False False False False = ' '
+drawCells False False False True = '▗'
+drawCells False False True False = '▖'
+drawCells False True False False = '▝'
+drawCells True False False False = '▘'
+drawCells False False True True = '▄'
+drawCells False True False True = '▐'
+drawCells True False False True = '▚'
+drawCells False True True False = '▞'
+drawCells True False True False = '▌'
+drawCells True True False False = '▀'
+drawCells False True True True = '▟'
+drawCells True False True True = '▙'
+drawCells True True False True = '▜'
+drawCells True True True False = '▛'
+drawCells True True True True = '█'
 
 getsConf :: Monad m => (UIConf rng m -> a) -> ContUI rng m a
 getsConf =
