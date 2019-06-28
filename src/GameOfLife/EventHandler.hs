@@ -12,7 +12,6 @@ import Control.Monad.Reader (ReaderT(..), asks)
 
 import Graphics.Vty.Input
 
-import GameOfLife.Render (RenderControl(..))
 import GameOfLife.Timer (TimerControl(..))
 import GameOfLife.UI (UIControl(..))
 
@@ -21,7 +20,6 @@ data EventHandlerConf m
   = EventHandlerConf { nextEvent :: !(m Event)
                      , timerCtrl :: !(TimerControl -> m ())
                      , uiCtrl :: !(UIControl -> m ())
-                     , renderCtrl :: !(RenderControl -> m ())
                      }
 
 type EventT r m = ContT r (ReaderT (EventHandlerConf m) m)
@@ -46,14 +44,8 @@ eventLoop =
         (EvKey (KChar 'q') _) -> do
           timerSend StopTimer
           uiSend StopUI
-          renderSend StopRender
           shutdown ()
         _ -> pure ()
-
-renderSend :: Monad m => RenderControl -> EventT r m ()
-renderSend ctrl =
-  asks renderCtrl >>=
-    lift . lift . ($ ctrl)
 
 timerSend :: Monad m => TimerControl -> EventT r m ()
 timerSend ctrl =

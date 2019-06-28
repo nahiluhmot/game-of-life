@@ -14,8 +14,8 @@ import Control.Monad.State.Strict (StateT, evalStateT, gets, lift, modify)
 import Data.Vector.Unboxed ((!))
 
 import Graphics.Vty.Attributes (defAttr)
-import Graphics.Vty.Image (Image, (<->), text, emptyImage)
-import Graphics.Vty.Picture (Picture, picForImage)
+import Graphics.Vty.Image (Image, (<->), text)
+import Graphics.Vty.Picture (picForImage)
 
 import System.Random (RandomGen)
 
@@ -24,11 +24,12 @@ import Data.Text.Lazy.Builder (singleton, toLazyTextWith)
 import GameOfLife.Cell (Cell)
 import GameOfLife.Grid (Grid(..))
 import qualified GameOfLife.Grid as G
+import GameOfLife.Render (RenderControl(..))
 
 -- Configuration for the UI.
 data UIConf rng m =
   UIConf { nextControl :: !(m UIControl)
-         , render :: !(Picture -> m ())
+         , toRenderer :: !(RenderControl -> m ())
          , getRandGen :: !(m rng)
          , initialSize :: !(Int, Int)
          }
@@ -70,7 +71,7 @@ uiLoop =
         Resize x y -> resizeGrid (x * 2) (y * 2)
         Refresh -> refreshGrid
         Clear -> clearGrid
-        StopUI -> shutdown ()
+        StopUI -> stopRenderer >> shutdown ()
 
 nextIteration :: Monad m => ContUI rng m ()
 nextIteration =
@@ -100,8 +101,13 @@ resizeGrid x y =
 
 renderGrid :: Monad m => Grid -> ContUI rng m ()
 renderGrid grid =
-  getsConf render >>=
-    lift . lift . ($ picForImage $ drawGrid grid)
+  getsConf toRenderer >>=
+    lift . lift . ($ Draw . picForImage $ drawGrid grid)
+
+stopRenderer :: Monad m => ContUI rng m ()
+stopRenderer =
+  getsConf toRenderer >>=
+    lift . lift . ($ StopRender)
 
 drawGrid :: Grid -> Image
 drawGrid g@(Grid cs w h) =

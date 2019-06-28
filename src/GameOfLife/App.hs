@@ -4,9 +4,12 @@ module GameOfLife.App
   ( runApp
   ) where
 
+import Control.Exception.Base (displayException)
+
+import Control.Concurrent.Async (Async, async, waitCatch)
+
 import Control.Concurrent.STM (STM, atomically, retry)
 import Control.Concurrent.STM.TBQueue (TBQueue, flushTBQueue, isFullTBQueue, newTBQueueIO, tryReadTBQueue, writeTBQueue)
-import Control.Concurrent.Async (async, wait)
 
 import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
@@ -20,7 +23,7 @@ import GameOfLife.Render (RenderConf(..), RenderControl(..), runRenderer)
 import GameOfLife.Timer (TimerConf(..), TimerControl, runTimer)
 import GameOfLife.UI (UIConf(..), UIControl(..), runUI)
 
-runApp :: IO ()
+runApp :: IO Bool
 runApp = do
   -- Allow event queues to build up for responsiveness.
   eventToTimer <- newTBQueueIO 1024
@@ -38,34 +41,51 @@ runApp = do
 
   hideCursor $ V.outputIface vty
 
-  eventHandlerFuture <- async $ eventHandlerThread vty eventToTimer eventToUI eventToRender
+  eventHandlerFuture <- async $ eventHandlerThread vty eventToTimer eventToUI
   timerFuture <- async $ timerThread eventToTimer timerToUI
   uiFuture <- async $ uiThread [eventToUI, timerToUI] uiToRender size
   renderFuture <- async $ renderThread [eventToRender, uiToRender] vty
 
-  wait eventHandlerFuture
-  wait timerFuture
-  wait uiFuture
-  wait renderFuture
+  eventResult <- wait' "event handler" eventHandlerFuture
+  timerResult <- wait' "timer" timerFuture
+  uiResult <- wait' "ui" uiFuture
+  renderResult <- wait' "render" renderFuture
 
   showCursor $ V.outputIface vty
 
   V.shutdown vty
 
-eventHandlerThread :: V.Vty -> TBQueue TimerControl -> TBQueue UIControl -> TBQueue RenderControl -> IO ()
-eventHandlerThread vty timerQueue uiQueue renderQueue =
+  let
+    combine (Right _) es = es
+    combine (Left e) es = e : es
+    errs = foldr combine [] [eventResult, timerResult, uiResult, renderResult]
+
+  case errs of
+    [] -> pure True
+    es -> False <$ mapM_ putStrLn es
+
+wait' :: String -> Async a -> IO (Either String a)
+wait' name =
+  let
+    showErr (Right val) = Right val
+    showErr (Left ex) = Left $ "Error in " ++ name ++ " thread: " ++ displayException ex
+  in
+    fmap showErr . waitCatch
+
+
+eventHandlerThread :: V.Vty -> TBQueue TimerControl -> TBQueue UIControl -> IO ()
+eventHandlerThread vty timerQueue uiQueue =
   runEventHandler
     EventHandlerConf { nextEvent = V.nextEvent vty
                      , timerCtrl = atomically . writeTBQueue timerQueue
                      , uiCtrl = atomically . writeTBQueue uiQueue
-                     , renderCtrl = atomically . writeTBQueue renderQueue
                      }
 
 timerThread :: TBQueue TimerControl -> TBQueue UIControl -> IO ()
 timerThread timerQueue uiQueue =
   runTimer
     TimerConf { action = atomically $ tryWriteQueue uiQueue NextIteration
-              , refreshRate = 30
+              , refreshRate = 15
               , minRefreshRate = 1
               , maxRefreshRate = 60
               , readCtrlMsgs = atomically $ flushTBQueue timerQueue
@@ -76,7 +96,7 @@ uiThread :: [TBQueue UIControl] -> TBQueue RenderControl -> (Int, Int) -> IO ()
 uiThread queues renderQueue size =
   runUI
     UIConf { nextControl = atomically $ readQueues queues
-           , render = atomically . writeTBQueue renderQueue . Draw
+           , toRenderer = atomically . writeTBQueue renderQueue
            , getRandGen = newStdGen
            , initialSize = size
            }
