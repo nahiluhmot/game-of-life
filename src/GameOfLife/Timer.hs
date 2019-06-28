@@ -18,7 +18,7 @@ data TimerConf =
             , refreshRate :: !Int -- hz
             , minRefreshRate :: !Int -- hz
             , maxRefreshRate :: !Int -- hz
-            , paused :: Bool
+            , paused :: !Bool
             }
 
 data TimerControl
